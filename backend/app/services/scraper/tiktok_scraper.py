@@ -1,10 +1,14 @@
+import random
+import logging
 from typing import List
 from app.schemas.product import ProductCreate
+
+logger = logging.getLogger(__name__)
 
 async def scrape_tiktok_products_mock() -> List[ProductCreate]:
     """
     Mocks the scraping of TikTok affiliate products.
-    Returns a list of ProductCreate schemas.
+    Returns a list of ProductCreate schemas with simulated trend scores.
     """
     mock_products = [
         ProductCreate(
