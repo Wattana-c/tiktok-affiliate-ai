@@ -1,16 +1,17 @@
-from pydantic import BaseModel, HttpUrl
-from datetime import datetime
+from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 class ProductBase(BaseModel):
-    tiktok_product_id: str
-    name: str
+    tiktok_product_id: Optional[str] = None
+    name: Optional[str] = None
     description: Optional[str] = None
-    price: float
-    currency: str = "THB"
-    product_url: HttpUrl
-    image_url: Optional[HttpUrl] = None
+    price: Optional[float] = None
+    currency: Optional[str] = "THB"
+    product_url: Optional[str] = None
+    image_url: Optional[str] = None
     category: Optional[str] = None
+    trend_score: Optional[float] = 0.0
 
 class ProductCreate(ProductBase):
     pass
@@ -18,13 +19,10 @@ class ProductCreate(ProductBase):
 class ProductUpdate(ProductBase):
     pass
 
-class ProductInDBBase(ProductBase):
+class Product(ProductBase):
     id: int
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
-
-class Product(ProductInDBBase):
-    pass

@@ -1,0 +1,11 @@
+
+# Pytest / Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+test_tiktok_affiliate*.db
+
+# Node.js
+node_modules/
+dist/

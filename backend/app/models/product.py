@@ -13,5 +13,6 @@ class Product(Base):
     product_url = Column(String, unique=True)
     image_url = Column(String, nullable=True)
     category = Column(String, nullable=True)
+    trend_score = Column(Float, default=0.0)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

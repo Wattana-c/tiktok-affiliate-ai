@@ -5,12 +5,12 @@ celery_app = Celery("tiktok_affiliate_ai", broker=settings.CELERY_BROKER_URL, ba
 
 celery_app.conf.update(
     task_track_started=True,
-    task_serializer=\'json\',
-    result_serializer=\'json\',
-    accept_content=[\'json\'],
-    timezone=\'Asia/Bangkok\',
+    task_serializer='json',
+    result_serializer='json',
+    accept_content=['json'],
+    timezone='Asia/Bangkok',
     enable_utc=True,
 )
 
 # Optional: Autodiscover tasks in the tasks.py module
-celery_app.autodiscover_tasks([\'app.worker\'])
+celery_app.autodiscover_tasks(['app.worker'])
