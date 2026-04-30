@@ -65,6 +65,20 @@ def update_queue_performance(queue_id: int, metrics: QueueMetricsUpdate, db: Ses
     if db_content:
         db_content.performance_score = score
 
+        # Track Strategy Metric
+        from app.models.content_strategy_metrics import ContentStrategyMetrics
+        metric = db.query(ContentStrategyMetrics).filter(
+            ContentStrategyMetrics.metric_type == "content_mode",
+            ContentStrategyMetrics.metric_value == db_content.content_mode
+        ).first()
+
+        if not metric:
+            metric = ContentStrategyMetrics(metric_type="content_mode", metric_value=db_content.content_mode, total_uses=1, average_score=score)
+            db.add(metric)
+        else:
+            metric.average_score = ((metric.average_score * metric.total_uses) + score) / (metric.total_uses + 1)
+            metric.total_uses += 1
+
     db.commit()
     db.refresh(db_item)
     return db_item

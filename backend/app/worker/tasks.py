@@ -4,9 +4,10 @@ import json
 from datetime import datetime, timedelta
 from celery.exceptions import MaxRetriesExceededError
 from app.worker.celery_app import celery_app
-from app.services.scraper.tiktok_scraper import scrape_tiktok_products_mock
+from app.services.scraper.tiktok_scraper import TikTokIngestionEngine
 from app.services.ai.content_generator import generate_variants
 from app.services.posting.tiktok_poster import post_content_to_tiktok_mock
+from app.models.tiktok_video_trend import TikTokVideoTrend
 from app.db.database import SessionLocal
 from app.models.product import Product as DBProduct
 from app.models.generated_content import GeneratedContent
@@ -26,16 +27,48 @@ def scrape_products_task(self):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        mock_products_data = loop.run_until_complete(scrape_tiktok_products_mock())
+        engine = TikTokIngestionEngine()
+        trending_data, source = loop.run_until_complete(engine.extract_trending_data())
 
-        for product_data in mock_products_data:
-            existing_product = db.query(DBProduct).filter(DBProduct.tiktok_product_id == product_data.tiktok_product_id).first()
+        logger.info(json.dumps({
+            "event": "data_ingestion_complete",
+            "source": source,
+            "items_extracted": len(trending_data),
+            "freshness": str(datetime.now())
+        }))
+
+        for item in trending_data:
+            # 1. Save raw extracted data to TikTokVideoTrend
+            existing_trend = db.query(TikTokVideoTrend).filter(TikTokVideoTrend.video_id == item["video_id"]).first()
+            if not existing_trend:
+                trend_entry = TikTokVideoTrend(
+                    video_id=item["video_id"],
+                    caption=item.get("caption"),
+                    hashtags=item.get("hashtags"),
+                    view_count=item.get("view_count", 0),
+                    like_count=item.get("like_count", 0),
+                    share_count=item.get("share_count", 0),
+                    product_keywords=item.get("product_keywords"),
+                    source=source,
+                    trend_score=item.get("trend_score", 0.0)
+                )
+                db.add(trend_entry)
+                db.commit()
+
+            # 2. Map back to products and trigger generation if applicable
+            # In a real scenario we use the product_keywords to map or create the product.
+            # Here we simulate by creating a product entry to match the trend logic.
+            product_data = {
+                "tiktok_product_id": item["video_id"], # Mapping proxy
+                "name": item.get("product_keywords", "Trending Product"),
+                "description": item.get("caption", ""),
+                "price": 0.0,
+                "trend_score": item.get("trend_score", 0.0)
+            }
+
+            existing_product = db.query(DBProduct).filter(DBProduct.tiktok_product_id == product_data["tiktok_product_id"]).first()
             if not existing_product:
-                # Add mock trend score out of 100
-                import random
-                product_data.trend_score = round(random.uniform(30.0, 100.0), 1)
-
-                db_product = DBProduct(**product_data.model_dump())
+                db_product = DBProduct(**product_data)
                 db.add(db_product)
                 db.commit()
                 db.refresh(db_product)
@@ -165,13 +198,41 @@ def post_queued_content_task(self):
             PostQueue.scheduled_time <= now
         ).all()
 
-        for post in pending_posts:
-            account = db.query(Account).filter(Account.id == post.account_id).first()
+        # Group posts by account to enforce rate limits
+        account_posts = {}
+        for p in pending_posts:
+            if p.account_id not in account_posts:
+                account_posts[p.account_id] = []
+            account_posts[p.account_id].append(p)
+
+        for account_id, posts in account_posts.items():
+            account = db.query(Account).filter(Account.id == account_id).first()
             if not account or not account.is_active:
-                post.status = "failed"
-                post.error_message = "Account disabled or not found"
+                for post in posts:
+                    post.status = "failed"
+                    post.error_message = "Account disabled or not found"
                 db.commit()
                 continue
+
+            # Smart Posting Strategy: Enforce daily limits to avoid spam behavior
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            posted_today = db.query(PostQueue).filter(
+                PostQueue.account_id == account.id,
+                PostQueue.status == "posted",
+                PostQueue.posted_time >= today_start
+            ).count()
+
+            allowed_posts_remaining = max(0, (account.rate_limit or 5) - posted_today)
+
+            for post in posts:
+                if allowed_posts_remaining <= 0:
+                    logger.info(json.dumps({"event": "post_delayed_ratelimit", "account": account.id, "post": post.id}))
+                    # Push scheduled time back
+                    post.scheduled_time = datetime.now() + timedelta(hours=4)
+                    db.commit()
+                    continue
+
+                allowed_posts_remaining -= 1
 
             content = db.query(GeneratedContent).filter(GeneratedContent.id == post.content_id).first()
             if not content:

@@ -85,9 +85,53 @@ async def generate_content(product: Product, language: str = "Thai", content_mod
 async def generate_variants(product: Product, language: str = "Thai") -> List[Dict]:
     """
     Generates multiple variations (A/B testing) for a product concurrently.
+    Uses 80/20 Exploration vs Exploitation strategy based on ContentStrategyMetrics.
     """
-    modes = ["soft_sell", "hard_sell", "problem_solution"]
-    tasks = [generate_content(product, language, mode) for mode in modes]
+    import random
+    from app.models.content_strategy_metrics import ContentStrategyMetrics
+
+    # Base modes available
+    all_modes = ["soft_sell", "hard_sell", "problem_solution", "storytelling", "urgent_flash"]
+
+    # 1. Fetch best performing mode (Exploitation)
+    best_mode = "soft_sell" # default
+    db = SessionLocal()
+    try:
+        best_metric = db.query(ContentStrategyMetrics).filter(
+            ContentStrategyMetrics.metric_type == "content_mode"
+        ).order_by(ContentStrategyMetrics.average_score.desc()).first()
+        if best_metric:
+            best_mode = best_metric.metric_value
+    finally:
+        db.close()
+
+    modes_to_generate = []
+
+    # 2. Decide Strategy (80% Exploit Best, 20% Explore Random)
+    # We will generate 3 variants.
+    # Variant 1: Exploitation (best mode)
+    modes_to_generate.append(best_mode)
+
+    # Variant 2 & 3: Mix of Exploit or Explore based on probability
+    for _ in range(2):
+        if random.random() < 0.8:
+            # 80% chance to exploit (use another top mode or default)
+            modes_to_generate.append(best_mode if best_mode in all_modes else "soft_sell")
+        else:
+            # 20% chance to explore (use random experimental mode)
+            experimental_modes = [m for m in all_modes if m != best_mode]
+            modes_to_generate.append(random.choice(experimental_modes) if experimental_modes else "storytelling")
+
+    # Ensure some uniqueness if we just duplicated best_mode 3 times
+    modes_to_generate = list(set(modes_to_generate))
+    if len(modes_to_generate) < 3:
+        for m in all_modes:
+            if m not in modes_to_generate:
+                modes_to_generate.append(m)
+            if len(modes_to_generate) >= 3:
+                break
+
+    tasks = [generate_content(product, language, mode) for mode in modes_to_generate[:3]]
 
     results = await asyncio.gather(*tasks)
 
