@@ -14,4 +14,5 @@ class GeneratedContent(Base):
     video_script = Column(Text)
     cta = Column(Text)
     hashtags = Column(Text)
+    performance_score = Column(Integer, default=0)
     created_at = Column(DateTime, default=func.now())

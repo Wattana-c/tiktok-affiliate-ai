@@ -4,13 +4,46 @@ import asyncio
 from typing import Dict, List
 from openai import AsyncOpenAI
 from app.schemas.product import Product
-from app.services.ai.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+from app.services.ai.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, FEEDBACK_CONTEXT_TEMPLATE
+from app.db.database import SessionLocal
+from app.models.generated_content import GeneratedContent
+from app.models.product import Product as DBProduct
 import logging
 
 logger = logging.getLogger(__name__)
 
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+
+def get_high_performing_examples(category: str, language: str, limit: int = 2) -> str:
+    """Fetches high performing content from the DB to use as examples in the prompt."""
+    db = SessionLocal()
+    try:
+        query = db.query(GeneratedContent).join(DBProduct).filter(
+            GeneratedContent.language == language,
+            GeneratedContent.performance_score > 50
+        )
+        if category:
+            query = query.filter(DBProduct.category == category)
+
+        top_contents = query.order_by(GeneratedContent.performance_score.desc()).limit(limit).all()
+
+        if not top_contents:
+            return ""
+
+        examples_str = ""
+        for idx, content in enumerate(top_contents):
+            examples_str += f"\nExample {idx+1}:\n"
+            examples_str += f"Hook: {content.hook}\n"
+            examples_str += f"Caption: {content.caption}\n"
+            examples_str += f"CTA: {content.cta}\n"
+
+        return FEEDBACK_CONTEXT_TEMPLATE.format(examples=examples_str)
+    except Exception as e:
+        logger.error(f"Error fetching examples: {e}")
+        return ""
+    finally:
+        db.close()
 
 async def generate_content(product: Product, language: str = "Thai", content_mode: str = "soft_sell") -> Dict[str, str]:
     """
@@ -21,6 +54,8 @@ async def generate_content(product: Product, language: str = "Thai", content_mod
         logger.warning(f"OPENAI_API_KEY not found. Falling back to smart mocks ({content_mode}).")
         return _generate_smart_mock(product, language, content_mode)
 
+    feedback_context = get_high_performing_examples(product.category, language)
+
     user_prompt = USER_PROMPT_TEMPLATE.format(
         name=product.name or "Unknown Product",
         category=product.category or "General",
@@ -28,7 +63,8 @@ async def generate_content(product: Product, language: str = "Thai", content_mod
         currency=product.currency or "THB",
         description=product.description or "Great product",
         language=language,
-        content_mode=content_mode
+        content_mode=content_mode,
+        feedback_context=feedback_context
     )
 
     try:

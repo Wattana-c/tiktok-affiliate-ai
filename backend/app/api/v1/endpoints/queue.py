@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.post_queue import PostQueue as DBPostQueue
-from app.schemas.queue import QueueItem
+from app.models.generated_content import GeneratedContent
+from app.schemas.queue import QueueItem, QueueMetricsUpdate
 
 router = APIRouter()
 
@@ -43,6 +44,30 @@ def retry_queue_item(queue_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_item)
     return {"message": "Queue item marked for retry", "status": db_item.status}
+
+@router.put("/{queue_id}/performance", response_model=QueueItem)
+def update_queue_performance(queue_id: int, metrics: QueueMetricsUpdate, db: Session = Depends(get_db)):
+    db_item = db.query(DBPostQueue).filter(DBPostQueue.id == queue_id).first()
+    if db_item is None:
+        raise HTTPException(status_code=404, detail="Queue item not found")
+
+    if db_item.status != "posted":
+        raise HTTPException(status_code=400, detail="Can only update performance for posted items")
+
+    for key, value in metrics.model_dump(exclude_unset=True).items():
+        setattr(db_item, key, value)
+
+    # Calculate a simple performance score to feedback to AI.
+    # Score = (clicks * 5) + (conversions * 20) + (likes) + (shares * 3) + (comments * 2)
+    score = (db_item.clicks * 5) + (db_item.conversions * 20) + db_item.likes + (db_item.shares * 3) + (db_item.comments * 2)
+
+    db_content = db.query(GeneratedContent).filter(GeneratedContent.id == db_item.content_id).first()
+    if db_content:
+        db_content.performance_score = score
+
+    db.commit()
+    db.refresh(db_item)
+    return db_item
 
 @router.delete("/{queue_id}")
 def delete_queue_item(queue_id: int, db: Session = Depends(get_db)):

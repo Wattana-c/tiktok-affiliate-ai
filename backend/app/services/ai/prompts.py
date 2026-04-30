@@ -31,5 +31,12 @@ Product Details:
 Target Language: {language}
 Content Mode: {content_mode}
 
+{feedback_context}
+
 Please generate the affiliate content matching the specified language and content mode.
+"""
+
+FEEDBACK_CONTEXT_TEMPLATE = """
+To help you, here are some examples of highly successful past content in the same category/language that drove high conversions and engagement. Use these as inspiration for tone and structure, but do not copy them verbatim:
+{examples}
 """

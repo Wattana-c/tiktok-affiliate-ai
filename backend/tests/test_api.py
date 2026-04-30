@@ -44,3 +44,49 @@ def test_queue_endpoints():
     response = client.get("/api/v1/queue/")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+def test_performance_update():
+    from app.models.post_queue import PostQueue
+    from app.models.generated_content import GeneratedContent
+    from app.models.product import Product
+    from app.models.account import Account
+
+    db = TestingSessionLocal()
+
+    # Setup dummy data
+    import uuid
+    uid = str(uuid.uuid4())
+    prod = Product(tiktok_product_id=f"test1_{uid}", name="Test", price=100.0)
+    db.add(prod)
+    db.commit()
+    db.refresh(prod)
+
+    cont = GeneratedContent(product_id=prod.id, language="Thai", hook="test", caption="test", video_script="test", cta="test", hashtags="test")
+    db.add(cont)
+    db.commit()
+    db.refresh(cont)
+
+    acc = Account(platform="tiktok", account_name="test", access_token="test")
+    db.add(acc)
+    db.commit()
+    db.refresh(acc)
+
+    q = PostQueue(product_id=prod.id, account_id=acc.id, content_id=cont.id, status="posted")
+    db.add(q)
+    db.commit()
+    db.refresh(q)
+
+    # Put performance
+    response = client.put(
+        f"/api/v1/queue/{q.id}/performance",
+        json={"views": 1000, "clicks": 50, "conversions": 10, "likes": 200}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["views"] == 1000
+    assert data["conversions"] == 10
+
+    # Verify AI feedback score logic
+    db.refresh(cont)
+    assert cont.performance_score > 0
+    db.close()

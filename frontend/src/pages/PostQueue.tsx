@@ -51,7 +51,7 @@ export default function PostQueue() {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product ID</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account ID</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Retries</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -64,8 +64,19 @@ export default function PostQueue() {
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(item.status)}`}>
                           {item.status}
                         </span>
+                        {item.retry_count > 0 && <span className="ml-2 text-xs text-red-500">({item.retry_count} retries)</span>}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.retry_count}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.status === 'posted' ? (
+                          <div className="flex flex-col text-xs space-y-1">
+                            <span>👀 {item.views} Views</span>
+                            <span>👍 {item.likes} Likes</span>
+                            <span>🔥 {item.conversions} Sales</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">N/A</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         {item.status === 'review' && (
                           <button onClick={() => handleAction(item.id, 'approve')} className="text-indigo-600 hover:text-indigo-900 mr-4">Approve</button>
