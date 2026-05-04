@@ -19,6 +19,7 @@ class QueueMetricsUpdate(BaseModel):
     shares: Optional[int] = None
     clicks: Optional[int] = None
     conversions: Optional[int] = None
+    revenue: Optional[float] = None
 
 class QueueItem(QueueBase):
     id: int
@@ -31,6 +32,8 @@ class QueueItem(QueueBase):
     shares: Optional[int] = 0
     clicks: Optional[int] = 0
     conversions: Optional[int] = 0
+    revenue: Optional[float] = 0.0
+    profit_score: Optional[float] = 0.0
     created_at: datetime
     updated_at: datetime
 

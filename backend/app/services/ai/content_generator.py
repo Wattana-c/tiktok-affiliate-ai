@@ -93,8 +93,10 @@ async def generate_variants(product: Product, language: str = "Thai") -> List[Di
     # Base modes available
     all_modes = ["soft_sell", "hard_sell", "problem_solution", "storytelling", "urgent_flash"]
 
-    # 1. Fetch best performing mode (Exploitation)
+    # Anti-Overfitting AI:
+    # 1. Fetch best performing mode (Exploitation) and apply diversity penalty.
     best_mode = "soft_sell" # default
+    diversity_penalty = 0
     db = SessionLocal()
     try:
         best_metric = db.query(ContentStrategyMetrics).filter(
@@ -102,25 +104,29 @@ async def generate_variants(product: Product, language: str = "Thai") -> List[Di
         ).order_by(ContentStrategyMetrics.average_score.desc()).first()
         if best_metric:
             best_mode = best_metric.metric_value
+
+            # Simple diversity penalty logic: if total_uses is very high, temporarily suppress it
+            if best_metric.total_uses > 100:
+                best_mode = random.choice([m for m in all_modes if m != best_metric.metric_value])
+                diversity_penalty = 1
+
     finally:
         db.close()
 
     modes_to_generate = []
 
-    # 2. Decide Strategy (80% Exploit Best, 20% Explore Random)
-    # We will generate 3 variants.
+    # 2. Decide Strategy (80% Exploit Best, 20% Explore Wildcard)
     # Variant 1: Exploitation (best mode)
     modes_to_generate.append(best_mode)
 
-    # Variant 2 & 3: Mix of Exploit or Explore based on probability
+    # Variant 2 & 3: Mix of Exploit or Explore
     for _ in range(2):
         if random.random() < 0.8:
-            # 80% chance to exploit (use another top mode or default)
+            # 80% chance to exploit
             modes_to_generate.append(best_mode if best_mode in all_modes else "soft_sell")
         else:
-            # 20% chance to explore (use random experimental mode)
-            experimental_modes = [m for m in all_modes if m != best_mode]
-            modes_to_generate.append(random.choice(experimental_modes) if experimental_modes else "storytelling")
+            # 20% chance to explore wild-card or experimental mode
+            modes_to_generate.append("wildcard_explore")
 
     # Ensure some uniqueness if we just duplicated best_mode 3 times
     modes_to_generate = list(set(modes_to_generate))
@@ -131,14 +137,16 @@ async def generate_variants(product: Product, language: str = "Thai") -> List[Di
             if len(modes_to_generate) >= 3:
                 break
 
-    tasks = [generate_content(product, language, mode) for mode in modes_to_generate[:3]]
+    modes_to_generate = modes_to_generate[:3]
+    tasks = [generate_content(product, language, mode) for mode in modes_to_generate]
 
     results = await asyncio.gather(*tasks)
 
     variants = []
-    for mode, content in zip(modes, results):
+    for mode, content in zip(modes_to_generate, results):
         content["content_mode"] = mode
         content["variant_name"] = f"Variant: {mode.replace('_', ' ').title()}"
+        content["diversity_penalty"] = diversity_penalty
         variants.append(content)
 
     return variants

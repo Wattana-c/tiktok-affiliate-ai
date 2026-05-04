@@ -70,8 +70,9 @@ export default function PostQueue() {
                         {item.status === 'posted' ? (
                           <div className="flex flex-col text-xs space-y-1">
                             <span>👀 {item.views} Views</span>
-                            <span>👍 {item.likes} Likes</span>
                             <span>🔥 {item.conversions} Sales</span>
+                            <span className="font-semibold text-green-600">💰 Revenue: ${item.revenue || 0}</span>
+                            <span className="font-semibold text-indigo-600">📈 Profit Score: {item.profit_score || 0}</span>
                           </div>
                         ) : (
                           <span className="text-gray-400">N/A</span>

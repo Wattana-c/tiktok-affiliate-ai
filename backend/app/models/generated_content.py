@@ -15,4 +15,5 @@ class GeneratedContent(Base):
     cta = Column(Text)
     hashtags = Column(Text)
     performance_score = Column(Integer, default=0)
+    diversity_penalty = Column(Integer, default=0)
     created_at = Column(DateTime, default=func.now())

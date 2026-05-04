@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, func
 from app.db.database import Base
 
 class PostQueue(Base):
@@ -19,5 +19,7 @@ class PostQueue(Base):
     shares = Column(Integer, default=0)
     clicks = Column(Integer, default=0)
     conversions = Column(Integer, default=0)
+    revenue = Column(Float, default=0.0)
+    profit_score = Column(Float, default=0.0)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

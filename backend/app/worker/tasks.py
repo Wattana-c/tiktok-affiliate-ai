@@ -68,6 +68,10 @@ def scrape_products_task(self):
 
             existing_product = db.query(DBProduct).filter(DBProduct.tiktok_product_id == product_data["tiktok_product_id"]).first()
             if not existing_product:
+                # Assign synthetic estimated_commission based on trend_score * rand for mock testing
+                import random
+                product_data["estimated_commission"] = round(product_data.get("trend_score", 0) * random.uniform(0.5, 2.0), 2)
+
                 db_product = DBProduct(**product_data)
                 db.add(db_product)
                 db.commit()
@@ -75,12 +79,13 @@ def scrape_products_task(self):
                 logger.info(json.dumps({
                     "event": "product_scraped",
                     "product_id": db_product.id,
-                    "trend_score": db_product.trend_score
+                    "trend_score": db_product.trend_score,
+                    "estimated_commission": db_product.estimated_commission
                 }))
 
-                # Smart Decision Logic based on trend_score
-                if db_product.trend_score < 50:
-                    logger.info(json.dumps({"event": "skip_product", "product_id": db_product.id, "reason": "Low trend score"}))
+                # Smart Decision Logic based on trend_score and margins
+                if db_product.trend_score < 50 and db_product.estimated_commission < 20.0:
+                    logger.info(json.dumps({"event": "skip_product", "product_id": db_product.id, "reason": "Low trend score and low margin"}))
                     continue
 
                 # Automatically trigger content generation after scraping
@@ -137,7 +142,8 @@ def generate_and_queue_content_task(self, product_id: int, language: str = "Thai
                 caption=variant.get("caption", ""),
                 video_script=variant.get("video_script", ""),
                 cta=variant.get("cta", ""),
-                hashtags=variant.get("hashtags", "")
+                hashtags=variant.get("hashtags", ""),
+                diversity_penalty=variant.get("diversity_penalty", 0)
             )
             db.add(new_content)
             saved_contents.append(new_content)
@@ -193,10 +199,12 @@ def post_queued_content_task(self):
     db = SessionLocal()
     try:
         now = datetime.now()
-        pending_posts = db.query(PostQueue).filter(
+
+        # Budget Allocation Logic: Sort pending posts dynamically by profit_score to ensure highest margin items post first.
+        pending_posts = db.query(PostQueue).join(DBProduct).filter(
             PostQueue.status == "pending",
             PostQueue.scheduled_time <= now
-        ).all()
+        ).order_by(DBProduct.estimated_commission.desc()).all()
 
         # Group posts by account to enforce rate limits
         account_posts = {}

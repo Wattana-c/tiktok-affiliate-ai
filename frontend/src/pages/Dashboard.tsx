@@ -6,18 +6,21 @@ export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({});
   const [topStyles, setTopStyles] = useState<any[]>([]);
+  const [topNiches, setTopNiches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [prodRes, statsRes, stylesRes] = await Promise.all([
+      const [prodRes, statsRes, stylesRes, nichesRes] = await Promise.all([
         axios.get('http://localhost:8000/api/v1/products/'),
         axios.get('http://localhost:8000/api/v1/analytics/dashboard-stats'),
-        axios.get('http://localhost:8000/api/v1/analytics/top-styles')
+        axios.get('http://localhost:8000/api/v1/analytics/top-styles'),
+        axios.get('http://localhost:8000/api/v1/analytics/top-niches')
       ]);
       setProducts(prodRes.data);
       setStats(statsRes.data);
       setTopStyles(stylesRes.data);
+      setTopNiches(nichesRes.data);
     } catch (err) {
       console.error(err);
     }
@@ -48,27 +51,28 @@ export default function Dashboard() {
 
   return (
     <div className="py-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Growth Engine Overview</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Profit Optimization Dashboard</h1>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-indigo-500">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Total Conversions</h3>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{stats.total_conversions || 0}</p>
-        </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Conversion Rate</h3>
-          <p className="mt-2 text-3xl font-bold text-green-600">{stats.conversion_rate || 0}%</p>
+          <h3 className="text-sm font-medium text-gray-500 uppercase">Total Revenue</h3>
+          <p className="mt-2 text-3xl font-bold text-green-600">${stats.total_revenue || 0}</p>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow border-l-4 border-indigo-500">
+          <h3 className="text-sm font-medium text-gray-500 uppercase">Net Profit Score</h3>
+          <p className="mt-2 text-3xl font-bold text-indigo-600">{stats.total_profit?.toFixed(1) || 0}</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Total Clicks</h3>
-          <p className="mt-2 text-3xl font-bold text-blue-600">{stats.total_clicks || 0}</p>
+          <h3 className="text-sm font-medium text-gray-500 uppercase">Conversion Rate</h3>
+          <p className="mt-2 text-3xl font-bold text-blue-600">{stats.conversion_rate || 0}%</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Top Product Score</h3>
-          <p className="mt-2 text-3xl font-bold text-purple-600" title={stats.top_product_name}>{stats.top_product_score || 0}</p>
+          <h3 className="text-sm font-medium text-gray-500 uppercase">Total Conversions</h3>
+          <p className="mt-2 text-3xl font-bold text-purple-600" title={stats.top_product_name}>{stats.total_conversions || 0}</p>
         </div>
       </div>
 
-      <div className="bg-white shadow rounded-lg p-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="bg-white shadow rounded-lg p-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Top Performing Styles (Strategy Engine)</h3>
         {topStyles.length > 0 ? (
           <ul className="divide-y divide-gray-200">
@@ -88,6 +92,29 @@ export default function Dashboard() {
         ) : (
           <p className="text-sm text-gray-500">No performance data yet.</p>
         )}
+      </div>
+
+      <div className="bg-white shadow rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Top Profitable Niches</h3>
+        {topNiches.length > 0 ? (
+          <ul className="divide-y divide-gray-200">
+            {topNiches.map((n, idx) => (
+              <li key={idx} className="py-3 flex justify-between items-center">
+                <div>
+                  <span className="font-medium text-gray-900">{n.category}</span>
+                  <span className="ml-2 text-xs text-gray-500 uppercase">({n.total_posts} posts)</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-green-600">${n.total_revenue.toFixed(2)}</p>
+                  <p className="text-xs text-gray-500">Profit Score: {n.total_profit.toFixed(1)}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-500">No niche data yet.</p>
+        )}
+      </div>
       </div>
 
       <div className="flex justify-between items-center mb-6 mt-12">

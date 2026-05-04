@@ -57,9 +57,11 @@ def update_queue_performance(queue_id: int, metrics: QueueMetricsUpdate, db: Ses
     for key, value in metrics.model_dump(exclude_unset=True).items():
         setattr(db_item, key, value)
 
-    # Calculate a simple performance score to feedback to AI.
-    # Score = (clicks * 5) + (conversions * 20) + (likes) + (shares * 3) + (comments * 2)
-    score = (db_item.clicks * 5) + (db_item.conversions * 20) + db_item.likes + (db_item.shares * 3) + (db_item.comments * 2)
+    # Profit Score = Revenue - Cost (proxy: posting frequency cost)
+    db_item.profit_score = (db_item.revenue or 0.0) - 0.5 # flat cost per post
+
+    # Calculate a simple performance score to feedback to AI. Includes profit weighting.
+    score = (db_item.clicks * 5) + (db_item.conversions * 20) + db_item.likes + (db_item.shares * 3) + (db_item.comments * 2) + (db_item.profit_score * 50)
 
     db_content = db.query(GeneratedContent).filter(GeneratedContent.id == db_item.content_id).first()
     if db_content:
@@ -78,6 +80,22 @@ def update_queue_performance(queue_id: int, metrics: QueueMetricsUpdate, db: Ses
         else:
             metric.average_score = ((metric.average_score * metric.total_uses) + score) / (metric.total_uses + 1)
             metric.total_uses += 1
+
+        # Update Niche Performance for budget allocation
+        from app.models.product import Product as DBProduct
+        from app.models.niche_performance import NichePerformance
+
+        product = db.query(DBProduct).filter(DBProduct.id == db_item.product_id).first()
+        if product and product.category:
+            niche = db.query(NichePerformance).filter(NichePerformance.category == product.category).first()
+            if not niche:
+                niche = NichePerformance(category=product.category, total_posts=1, total_revenue=(db_item.revenue or 0.0), total_profit=db_item.profit_score)
+                db.add(niche)
+            else:
+                niche.total_posts += 1
+                niche.total_revenue += (db_item.revenue or 0.0)
+                niche.total_profit += db_item.profit_score
+                niche.avg_conversion_rate = (niche.avg_conversion_rate + (db_item.conversions / db_item.views if db_item.views > 0 else 0)) / 2
 
     db.commit()
     db.refresh(db_item)

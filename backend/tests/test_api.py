@@ -79,12 +79,14 @@ def test_performance_update():
     # Put performance
     response = client.put(
         f"/api/v1/queue/{q.id}/performance",
-        json={"views": 1000, "clicks": 50, "conversions": 10, "likes": 200}
+        json={"views": 1000, "clicks": 50, "conversions": 10, "likes": 200, "revenue": 150.0}
     )
     assert response.status_code == 200
     data = response.json()
     assert data["views"] == 1000
     assert data["conversions"] == 10
+    assert data["revenue"] == 150.0
+    assert data["profit_score"] == 149.5 # 150 - 0.5 flat cost
 
     # Verify AI feedback score logic
     db.refresh(cont)

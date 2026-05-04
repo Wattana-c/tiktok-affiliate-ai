@@ -10,6 +10,7 @@ class Product(Base):
     description = Column(Text, nullable=True)
     price = Column(Float)
     currency = Column(String, default="THB")
+    estimated_commission = Column(Float, default=0.0)
     product_url = Column(String, unique=True)
     image_url = Column(String, nullable=True)
     category = Column(String, nullable=True)
