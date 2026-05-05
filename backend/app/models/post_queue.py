@@ -20,6 +20,7 @@ class PostQueue(Base):
     clicks = Column(Integer, default=0)
     conversions = Column(Integer, default=0)
     revenue = Column(Float, default=0.0)
+    dynamic_cost = Column(Float, default=0.0)
     profit_score = Column(Float, default=0.0)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

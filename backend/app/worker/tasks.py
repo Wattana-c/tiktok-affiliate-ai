@@ -158,8 +158,20 @@ def generate_and_queue_content_task(self, product_id: int, language: str = "Thai
         if saved_contents:
             target_content = saved_contents[0]
 
-            # Automatically queue for posting (Find an active account)
-            account = db.query(Account).filter(Account.is_active == True).first()
+            # Multi-Account Scaling Engine: Rotate accounts by picking the one least used today
+            from sqlalchemy import func
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+            accounts = db.query(Account, func.count(PostQueue.id).label('daily_posts')).outerjoin(
+                PostQueue,
+                (PostQueue.account_id == Account.id) & (PostQueue.posted_time >= today_start) & (PostQueue.status == "posted")
+            ).filter(
+                Account.is_active == True,
+                Account.is_shadowbanned == False
+            ).group_by(Account.id).order_by('daily_posts').all()
+
+            account = accounts[0][0] if accounts else None
+
             if account:
                 # Smart decision for Queue status
                 queue_status = "pending" if db_product.trend_score >= 80 else "review"
@@ -206,6 +218,16 @@ def post_queued_content_task(self):
             PostQueue.scheduled_time <= now
         ).order_by(DBProduct.estimated_commission.desc()).all()
 
+        # Global Risk Control: Daily Loss Limit
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        from sqlalchemy import func
+        daily_profit = db.query(func.sum(PostQueue.profit_score)).filter(PostQueue.posted_time >= today_start).scalar() or 0.0
+
+        DAILY_LOSS_LIMIT = -20.0
+        if daily_profit <= DAILY_LOSS_LIMIT:
+            logger.error(json.dumps({"event": "risk_control_stop", "reason": "Daily loss limit reached", "daily_profit": daily_profit}))
+            return {"status": "halted", "message": "Risk control triggered: Daily loss limit reached."}
+
         # Group posts by account to enforce rate limits
         account_posts = {}
         for p in pending_posts:
@@ -215,10 +237,10 @@ def post_queued_content_task(self):
 
         for account_id, posts in account_posts.items():
             account = db.query(Account).filter(Account.id == account_id).first()
-            if not account or not account.is_active:
+            if not account or not account.is_active or account.is_shadowbanned:
                 for post in posts:
                     post.status = "failed"
-                    post.error_message = "Account disabled or not found"
+                    post.error_message = "Account disabled, shadowbanned, or not found"
                 db.commit()
                 continue
 

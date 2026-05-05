@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import ProductCard from '../components/ProductCard';
 
 export default function Dashboard() {
@@ -7,20 +7,23 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>({});
   const [topStyles, setTopStyles] = useState<any[]>([]);
   const [topNiches, setTopNiches] = useState<any[]>([]);
+  const [accountProfits, setAccountProfits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [prodRes, statsRes, stylesRes, nichesRes] = await Promise.all([
-        axios.get('http://localhost:8000/api/v1/products/'),
-        axios.get('http://localhost:8000/api/v1/analytics/dashboard-stats'),
-        axios.get('http://localhost:8000/api/v1/analytics/top-styles'),
-        axios.get('http://localhost:8000/api/v1/analytics/top-niches')
+      const [prodRes, statsRes, stylesRes, nichesRes, accRes] = await Promise.all([
+        api.get('/v1/products/'),
+        api.get('/v1/analytics/dashboard-stats'),
+        api.get('/v1/analytics/top-styles'),
+        api.get('/v1/analytics/top-niches'),
+        api.get('/v1/analytics/account-profits')
       ]);
       setProducts(prodRes.data);
       setStats(statsRes.data);
       setTopStyles(stylesRes.data);
       setTopNiches(nichesRes.data);
+      setAccountProfits(accRes.data);
     } catch (err) {
       console.error(err);
     }
@@ -33,7 +36,7 @@ export default function Dashboard() {
   const handleScrape = async () => {
     setLoading(true);
     try {
-      await axios.post('http://localhost:8000/api/v1/scraper/scrape-mock-products');
+      await api.post('/v1/scraper/scrape-mock-products');
       fetchData();
     } catch (err) {
       console.error(err);
@@ -47,7 +50,6 @@ export default function Dashboard() {
     window.location.href = `/content?productId=${id}`;
   };
 
-  const topProducts = products.filter(p => p.trend_score >= 80).length;
 
   return (
     <div className="py-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -115,6 +117,28 @@ export default function Dashboard() {
           <p className="text-sm text-gray-500">No niche data yet.</p>
         )}
       </div>
+      </div>
+
+      <div className="bg-white shadow rounded-lg p-6 mb-8 border-t-4 border-yellow-500">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Multi-Account Scaling & Risk Control</h3>
+        {accountProfits.length > 0 ? (
+          <ul className="divide-y divide-gray-200">
+            {accountProfits.map((a, idx) => (
+              <li key={idx} className="py-3 flex justify-between items-center">
+                <div>
+                  <span className="font-medium text-gray-900">{a.account_name}</span>
+                  <span className="ml-2 text-xs text-gray-500 uppercase">({a.platform})</span>
+                  {a.is_shadowbanned && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">Shadowbanned</span>}
+                </div>
+                <div className="text-right">
+                  <p className={`text-sm font-bold ${a.total_profit < 0 ? 'text-red-600' : 'text-green-600'}`}>${a.total_profit.toFixed(2)} Profit</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-500">No account data yet.</p>
+        )}
       </div>
 
       <div className="flex justify-between items-center mb-6 mt-12">

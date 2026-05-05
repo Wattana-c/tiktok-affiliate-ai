@@ -28,13 +28,16 @@ def test_read_main():
     assert "Welcome to TikTok Affiliate AI" in response.json()["message"]
 
 def test_create_and_read_account():
+    import uuid
+    uid = str(uuid.uuid4())
+    acc_name = f"test_acc_{uid}"
     response = client.post(
         "/api/v1/accounts/",
-        json={"platform": "tiktok", "account_name": "test_acc", "access_token": "token123", "is_active": True}
+        json={"platform": "tiktok", "account_name": acc_name, "access_token": "token123", "is_active": True}
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["account_name"] == "test_acc"
+    assert data["account_name"] == acc_name
 
     response = client.get("/api/v1/accounts/")
     assert response.status_code == 200
@@ -66,7 +69,7 @@ def test_performance_update():
     db.commit()
     db.refresh(cont)
 
-    acc = Account(platform="tiktok", account_name="test", access_token="test")
+    acc = Account(platform="tiktok", account_name=f"test_{uid}", access_token="test")
     db.add(acc)
     db.commit()
     db.refresh(acc)
@@ -79,16 +82,25 @@ def test_performance_update():
     # Put performance
     response = client.put(
         f"/api/v1/queue/{q.id}/performance",
-        json={"views": 1000, "clicks": 50, "conversions": 10, "likes": 200, "revenue": 150.0}
+        json={"views": 5, "clicks": 50, "conversions": 10, "likes": 200, "revenue": 150.0}
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["views"] == 1000
+    assert data["views"] == 5
     assert data["conversions"] == 10
     assert data["revenue"] == 150.0
-    assert data["profit_score"] == 149.5 # 150 - 0.5 flat cost
 
     # Verify AI feedback score logic
     db.refresh(cont)
     assert cont.performance_score > 0
+
+    # Verify shadowban logic (views < 10 triggers it)
+    db.refresh(acc)
+    assert acc.is_shadowbanned == True
+
+    # Verify dynamic cost and account profit calculation
+    db.refresh(q)
+    assert q.dynamic_cost > 0.0
+    assert acc.total_profit == q.profit_score
+
     db.close()

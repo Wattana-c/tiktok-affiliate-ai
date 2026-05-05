@@ -57,8 +57,30 @@ def update_queue_performance(queue_id: int, metrics: QueueMetricsUpdate, db: Ses
     for key, value in metrics.model_dump(exclude_unset=True).items():
         setattr(db_item, key, value)
 
-    # Profit Score = Revenue - Cost (proxy: posting frequency cost)
-    db_item.profit_score = (db_item.revenue or 0.0) - 0.5 # flat cost per post
+    from app.models.account import Account
+
+    # Dynamic Cost Calculation
+    # e.g., base infra cost (0.10) + proxy cost (0.25) + account usage cost (0.15)
+    dynamic_cost = 0.10 + 0.25 + 0.15
+    db_item.dynamic_cost = dynamic_cost
+
+    # Profit Score = Revenue - Cost
+    db_item.profit_score = (db_item.revenue or 0.0) - dynamic_cost
+
+    # Update Account's total profit
+    account = db.query(Account).filter(Account.id == db_item.account_id).first()
+    if account:
+        account.total_profit = (account.total_profit or 0.0) + db_item.profit_score
+        db.add(account)
+
+    # Shadowban detection
+    # If it's been posted but views remain extremely low (e.g. < 10)
+    # We flag the account as potentially shadowbanned.
+    if db_item.views < 10 and account:
+        # In a real app, this should only happen after ~24 hours of being posted.
+        # We simplify the condition here.
+        account.is_shadowbanned = True
+
 
     # Calculate a simple performance score to feedback to AI. Includes profit weighting.
     score = (db_item.clicks * 5) + (db_item.conversions * 20) + db_item.likes + (db_item.shares * 3) + (db_item.comments * 2) + (db_item.profit_score * 50)

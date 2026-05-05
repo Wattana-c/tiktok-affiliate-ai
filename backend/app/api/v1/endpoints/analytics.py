@@ -44,3 +44,9 @@ def get_top_niches(db: Session = Depends(get_db)):
     from app.models.niche_performance import NichePerformance
     niches = db.query(NichePerformance).order_by(NichePerformance.total_profit.desc()).limit(5).all()
     return niches
+
+@router.get("/account-profits")
+def get_account_profits(db: Session = Depends(get_db)):
+    from app.models.account import Account
+    accounts = db.query(Account).order_by(Account.total_profit.desc()).all()
+    return [{"account_name": a.account_name, "platform": a.platform, "total_profit": a.total_profit, "is_shadowbanned": a.is_shadowbanned} for a in accounts]

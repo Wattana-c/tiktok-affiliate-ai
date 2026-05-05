@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 
 export default function PostQueue() {
   const [queue, setQueue] = useState<any[]>([]);
 
   const fetchQueue = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/queue/');
+      const res = await api.get('/v1/queue/');
       setQueue(res.data);
     } catch (err) {
       console.error(err);
@@ -19,7 +19,7 @@ export default function PostQueue() {
 
   const handleAction = async (id: number, action: 'approve' | 'retry') => {
     try {
-      await axios.put(`http://localhost:8000/api/v1/queue/${id}/${action}`);
+      await api.put(`/v1/queue/${id}/${action}`);
       fetchQueue();
     } catch (err) {
       console.error(err);
