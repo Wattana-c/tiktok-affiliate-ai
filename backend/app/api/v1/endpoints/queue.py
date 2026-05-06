@@ -3,10 +3,13 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+import logging
 from app.db.database import get_db
 from app.models.post_queue import PostQueue as DBPostQueue
 from app.models.generated_content import GeneratedContent
 from app.schemas.queue import QueueItem, QueueMetricsUpdate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -53,6 +56,12 @@ def update_queue_performance(queue_id: int, metrics: QueueMetricsUpdate, db: Ses
 
     if db_item.status != "posted":
         raise HTTPException(status_code=400, detail="Can only update performance for posted items")
+
+    # Anomaly Logging
+    if metrics.revenue is not None and metrics.revenue > 10000.0:
+        warning_msg = f"Anomaly detected: extremely high revenue ({metrics.revenue}) reported for queue_id {queue_id}."
+        logger.warning(warning_msg)
+        db_item.error_message = warning_msg
 
     for key, value in metrics.model_dump(exclude_unset=True).items():
         setattr(db_item, key, value)

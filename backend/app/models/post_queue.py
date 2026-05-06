@@ -1,8 +1,11 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, func
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, func, CheckConstraint
 from app.db.database import Base
 
 class PostQueue(Base):
     __tablename__ = "post_queue"
+    __table_args__ = (
+        CheckConstraint('revenue >= 0', name='check_revenue_positive'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"))

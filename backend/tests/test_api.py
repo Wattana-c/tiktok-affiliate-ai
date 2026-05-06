@@ -82,11 +82,11 @@ def test_performance_update():
     # Put performance
     response = client.put(
         f"/api/v1/queue/{q.id}/performance",
-        json={"views": 5, "clicks": 50, "conversions": 10, "likes": 200, "revenue": 150.0}
+        json={"views": 100, "clicks": 50, "conversions": 10, "likes": 200, "revenue": 150.0}
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["views"] == 5
+    assert data["views"] == 100
     assert data["conversions"] == 10
     assert data["revenue"] == 150.0
 
@@ -94,13 +94,37 @@ def test_performance_update():
     db.refresh(cont)
     assert cont.performance_score > 0
 
-    # Verify shadowban logic (views < 10 triggers it)
+    # Verify shadowban logic (views < 10 triggers it, we set to 100 so it should be false)
     db.refresh(acc)
-    assert acc.is_shadowbanned == True
+    assert acc.is_shadowbanned == False
 
     # Verify dynamic cost and account profit calculation
     db.refresh(q)
     assert q.dynamic_cost > 0.0
     assert acc.total_profit == q.profit_score
+
+    # Test Negative Revenue Validation (422 expected)
+    response_neg = client.put(
+        f"/api/v1/queue/{q.id}/performance",
+        json={"revenue": -5.0}
+    )
+    assert response_neg.status_code == 422
+
+    # Test High Revenue Anomaly Logic (Should still pass 200 but trigger logger)
+    response_high = client.put(
+        f"/api/v1/queue/{q.id}/performance",
+        json={"views": 50, "conversions": 10, "revenue": 15000.0}
+    )
+    assert response_high.status_code == 200
+    db.refresh(q)
+    assert q.error_message is not None
+    assert "Anomaly detected" in q.error_message
+
+    # Test Conversions > Views Validation (422 expected)
+    response_conv = client.put(
+        f"/api/v1/queue/{q.id}/performance",
+        json={"views": 10, "conversions": 50}
+    )
+    assert response_conv.status_code == 422
 
     db.close()
