@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, func
+from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 class GeneratedContent(Base):
@@ -17,3 +18,5 @@ class GeneratedContent(Base):
     performance_score = Column(Integer, default=0)
     diversity_penalty = Column(Integer, default=0)
     created_at = Column(DateTime, default=func.now())
+
+    product = relationship("Product", back_populates="generated_contents", lazy="joined")

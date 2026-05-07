@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, Float, DateTime, func
+from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 class Product(Base):
@@ -17,3 +18,5 @@ class Product(Base):
     trend_score = Column(Float, default=0.0)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    generated_contents = relationship("GeneratedContent", back_populates="product", cascade="all, delete-orphan")

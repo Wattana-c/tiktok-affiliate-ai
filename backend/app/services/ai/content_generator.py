@@ -15,25 +15,68 @@ logger = logging.getLogger(__name__)
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
 
-def get_high_performing_examples(category: str, language: str, limit: int = 2) -> str:
+def get_high_performing_examples(category: str, language: str, limit: int = 3) -> str:
     """Fetches high performing content from the DB to use as examples in the prompt."""
+    import random
     db = SessionLocal()
     try:
+        # Fetch the latest 50 high performing samples across diverse modes
         query = db.query(GeneratedContent).join(DBProduct).filter(
             GeneratedContent.language == language,
             GeneratedContent.performance_score > 50
         )
-        if category:
-            query = query.filter(DBProduct.category == category)
 
-        top_contents = query.order_by(GeneratedContent.performance_score.desc()).limit(limit).all()
+        # Don't strictly filter by exact category to ensure cross-pollination of viral mechanics
+        # Just order by the newest/best and fetch a larger pool
+        pool = query.order_by(GeneratedContent.created_at.desc(), GeneratedContent.performance_score.desc()).limit(50).all()
 
-        if not top_contents:
+        if not pool:
             return ""
 
+        # Randomly drop 20% of the pool to ensure structural diversity and prevent overfitting
+        pool_size = len(pool)
+        drop_count = int(pool_size * 0.2)
+        if drop_count > 0 and pool_size > drop_count:
+            sampled_pool = random.sample(pool, pool_size - drop_count)
+        else:
+            sampled_pool = pool
+
+        # Ensure diversity by picking items with different content_modes if possible
+        selected_examples = []
+        seen_modes = set()
+
+        # Priority to matching category if available in the sampled pool
+        category_matches = [p for p in sampled_pool if p.product.category == category]
+        random.shuffle(category_matches)
+
+        for content in category_matches:
+            if content.content_mode not in seen_modes:
+                selected_examples.append(content)
+                seen_modes.add(content.content_mode)
+            if len(selected_examples) >= limit:
+                break
+
+        # Fill the rest with general viral structures if we haven't hit the limit
+        if len(selected_examples) < limit:
+            random.shuffle(sampled_pool)
+            for content in sampled_pool:
+                if content not in selected_examples and content.content_mode not in seen_modes:
+                    selected_examples.append(content)
+                    seen_modes.add(content.content_mode)
+                if len(selected_examples) >= limit:
+                    break
+
+        # Fallback fill if modes were extremely limited
+        if len(selected_examples) < limit:
+            for content in sampled_pool:
+                if content not in selected_examples:
+                    selected_examples.append(content)
+                if len(selected_examples) >= limit:
+                    break
+
         examples_str = ""
-        for idx, content in enumerate(top_contents):
-            examples_str += f"\nExample {idx+1}:\n"
+        for idx, content in enumerate(selected_examples):
+            examples_str += f"\nExample {idx+1} ({content.content_mode}):\n"
             examples_str += f"Hook: {content.hook}\n"
             examples_str += f"Caption: {content.caption}\n"
             examples_str += f"CTA: {content.cta}\n"
