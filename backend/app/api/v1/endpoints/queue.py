@@ -83,13 +83,9 @@ def update_queue_performance(queue_id: int, metrics: QueueMetricsUpdate, db: Ses
         db.add(account)
 
     # Shadowban detection
-    # If it's been posted but views remain extremely low (e.g. < 10)
-    # We flag the account as potentially shadowbanned.
-    if db_item.views < 10 and account:
-        # In a real app, this should only happen after ~24 hours of being posted.
-        # We simplify the condition here.
-        account.is_shadowbanned = True
-
+    from app.services.posting.shadowban_detector import check_and_update_shadowban
+    if account:
+        check_and_update_shadowban(account.id, db)
 
     # Calculate a simple performance score to feedback to AI. Includes profit weighting.
     score = (db_item.clicks * 5) + (db_item.conversions * 20) + db_item.likes + (db_item.shares * 3) + (db_item.comments * 2) + (db_item.profit_score * 50)

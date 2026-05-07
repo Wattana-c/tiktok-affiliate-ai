@@ -240,7 +240,14 @@ def post_queued_content_task(self):
             if not account or not account.is_active or account.is_shadowbanned:
                 for post in posts:
                     post.status = "failed"
-                    post.error_message = "Account disabled, shadowbanned, or not found"
+                    reason = "Account is explicitly disabled or shadowbanned." if account else "Account not found."
+                    post.error_message = reason
+                    logger.warning(json.dumps({
+                        "event": "post_skipped",
+                        "post_id": post.id,
+                        "account_id": account_id,
+                        "reason": reason
+                    }))
                 db.commit()
                 continue
 
