@@ -100,7 +100,8 @@ def test_performance_update():
 
     # Verify dynamic cost and account profit calculation
     db.refresh(q)
-    assert q.dynamic_cost > 0.0
+    # The default infra cost is 0.10, default account cost is 0.15, proxy is 0.25 => total 0.50
+    assert q.dynamic_cost == 0.50
     assert acc.total_profit == q.profit_score
 
     # Test Negative Revenue Validation (422 expected)

@@ -67,17 +67,22 @@ def update_queue_performance(queue_id: int, metrics: QueueMetricsUpdate, db: Ses
         setattr(db_item, key, value)
 
     from app.models.account import Account
+    from app.core.config import settings
+
+    account = db.query(Account).filter(Account.id == db_item.account_id).first()
 
     # Dynamic Cost Calculation
-    # e.g., base infra cost (0.10) + proxy cost (0.25) + account usage cost (0.15)
-    dynamic_cost = 0.10 + 0.25 + 0.15
+    base_infra_cost = settings.INFRA_COST_PER_POST
+    acc_cost = account.account_cost if account else 0.15
+    proxy_cost = account.proxy_cost if account else 0.25
+
+    dynamic_cost = base_infra_cost + proxy_cost + acc_cost
     db_item.dynamic_cost = dynamic_cost
 
     # Profit Score = Revenue - Cost
     db_item.profit_score = (db_item.revenue or 0.0) - dynamic_cost
 
     # Update Account's total profit
-    account = db.query(Account).filter(Account.id == db_item.account_id).first()
     if account:
         account.total_profit = (account.total_profit or 0.0) + db_item.profit_score
         db.add(account)

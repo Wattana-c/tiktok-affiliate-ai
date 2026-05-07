@@ -13,5 +13,7 @@ class Account(Base):
     failed_attempts = Column(Integer, default=0)
     is_shadowbanned = Column(Boolean, default=False)
     total_profit = Column(Float, default=0.0)
+    account_cost = Column(Float, default=0.15)
+    proxy_cost = Column(Float, default=0.25)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
