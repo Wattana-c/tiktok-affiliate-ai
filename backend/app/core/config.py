@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     INFRA_COST_PER_POST: float = 0.10
 
+    # Global Risk Control (Kill Switch)
+    DAILY_LOSS_LIMIT: float = float(os.getenv("DAILY_LOSS_LIMIT", "-20.0"))
+
     class Config:
         case_sensitive = True
         env_file = ".env"

@@ -1,62 +1,54 @@
 # TikTok Affiliate AI Auto Content Machine 🚀
 
-A scalable, production-ready affiliate automation system that fetches trending products, generates viral multi-variant AI content (Bilingual: Thai & English), tracks conversion metrics, and schedules multi-account auto-posting with smart fallback and rate limiting. This architecture forms an end-to-end **Growth Optimization Engine**.
+ระบบออโตเมชั่นสำหรับนักทำการตลาด Affiliate (นายหน้า) แบบครบวงจรและพร้อมใช้งานบนระดับโปรดักชั่น ระบบนี้ถูกออกแบบมาเป็น **Growth & Profit Optimization Engine** ที่จะช่วยคุณหาเทรนด์สินค้า, สร้างเนื้อหาด้วย AI แบบ A/B Testing, ออโต้โพสต์, และปรับกลยุทธ์ตามรายได้ (Revenue) ที่เกิดขึ้นจริง
 
-## 🏗 System Architecture & Growth Engine
+## 🏗 ภาพรวมของระบบ (System Architecture)
 
-1. **Robust TikTok Data Ingestion**: A hybrid pipeline (API -> Scraper -> Mock) utilizing rotating User-Agents and request throttling to safely extract real TikTok trends and map them to actionable product data.
-2. **Smart Decision Engine**: Uses weighted algorithms mapping engagement rate and view velocity to a dynamic `trend_score`:
-   - **Score >= 80**: High confidence. Auto-generates content and bypasses human review into the auto-post queue.
-   - **Score >= 50 and < 80**: Med confidence. AI content is generated but flagged for manual admin `review`.
-   - **Score < 50**: Low confidence. Skipped completely.
-3. **Exploration vs Exploitation AI Strategy (80/20)**: Generates 3 A/B variants for each product. The AI algorithm allocates an 80% probability to reusing historically best-performing `content_mode`s (e.g. `soft_sell`, `hard_sell`, `problem_solution`), and a 20% probability of experimenting with new hooks. High-performing older hooks are ingested as few-shot prompt examples dynamically.
-4. **Celery Worker Pipeline**: Manages asynchronous stages and retries.
-   - Includes exponential backoff, maximum retry limits, and smart per-account daily rate limiting (spam avoidance).
-5. **Multi-Account Auto-Poster**: Tracks API/Platform failures. Auto-disables an account after 5 consecutive failed posts.
-6. **Performance Feedback Loop**: Real-time webhook APIs ingest views, clicks, and conversion data to weight and rank strategy successes in the database.
-7. **React Admin Dashboard**: Built with Vite + Tailwind CSS. Track conversion rates, visually compare AI variants, approve the review queue, and configure system thresholds.
+1. **ระบบดึงข้อมูลเทรนด์ (TikTok Data Ingestion)**: ทำงานด้วยระบบ Hybrid (API -> Scraper -> Mock) มีระบบป้องกันการแบนด้วยการสลับ User-Agents และจำกัดความถี่การดึงข้อมูล เพื่อให้ได้ข้อมูลสินค้าที่กำลังเป็นกระแส
+2. **ระบบคิดคะแนนอัจฉริยะ (Smart Decision Engine)**: คำนวณคะแนนเทรนด์ (`trend_score`) จากยอดไลก์และยอดวิว
+   - **Score >= 80**: สินค้ามาแรงสุดๆ AI จะสร้างเนื้อหาและโพสต์ทันทีโดยไม่ต้องรออนุมัติ
+   - **Score >= 50 และ < 80**: สินค้าระดับกลาง ระบบจะสร้างเนื้อหาไว้และรอให้คุณกดตรวจสอบ (Review)
+   - **Score < 50**: สินค้าไม่น่าสนใจ ระบบจะข้ามไป
+3. **ระบบสุ่มและเรียนรู้ของ AI (Exploration vs Exploitation 80/20)**: สร้างคอนเทนต์ 3 รูปแบบ (A/B variants) โดย 80% AI จะเลือกใช้รูปแบบที่เคยสร้างรายได้สูงมาแล้วในอดีต (เช่น แนวบอกเล่า, แนวขายตรง) และอีก 20% จะลองสุ่มรูปแบบใหม่เพื่อหาเทรนด์ที่อาจจะกลายเป็นไวรัล
+4. **การบริหารจัดการคิวและโพสต์ (Celery Worker Pipeline)**: จัดการงานเบื้องหลัง มีระบบหน่วงเวลาการทำงานเมื่อเกิดข้อผิดพลาด และป้องกันการโพสต์สแปมเกินลิมิต
+5. **ระบบจัดการหลายบัญชีและควบคุมความเสี่ยง (Multi-Account & Risk Control)**: ระบบจะกระจายการโพสต์ไปยังบัญชีที่มีอยู่โดยอัตโนมัติ หากเจอการปิดกั้น (Shadowban) หรือพบบัญชีขาดทุนเกินขีดจำกัด (`DAILY_LOSS_LIMIT`) ระบบทั้งหมดจะหยุดชั่วคราว (Kill Switch) เพื่อลดความเสียหาย
+6. **แดชบอร์ดแอดมิน (React Admin Dashboard)**: หน้าต่างควบคุมที่สร้างจาก Vite + Tailwind CSS สำหรับเช็คสถิติการคลิก, รายได้, กำไรต่อบัญชี, และกดอนุมัติคิว
 
-## 🛠 Prerequisites
+## 🛠 สิ่งที่ต้องมีก่อนเริ่มใช้งาน (Prerequisites)
 
 - Docker & Docker Compose
-- (Optional but recommended) OpenAI API Key to utilize the actual GPT models.
+- (แนะนำ) OpenAI API Key เพื่อใช้งาน AI ในการคิดคอนเทนต์แบบสมจริง (ถ้าไม่มี ระบบจะมี Mock เพื่อจำลองการทำงานให้)
 
-## 🚀 Setup & Run Instructions
+## 🚀 วิธีการติดตั้งและเริ่มใช้งาน
 
-### 1. Environment Setup
+### 1. ตั้งค่า Environment
 
-Clone the repository and set up your environment variables:
+คัดลอกไฟล์ `.env.example` ไปเป็น `.env`:
 ```bash
 cp .env.example .env
 ```
-Edit the `.env` file and input your `OPENAI_API_KEY`. (If left blank, the system will use a smart mock generator which simulates outputs for testing).
+แก้ไขไฟล์ `.env` และใส่ค่า `OPENAI_API_KEY` ของคุณลงไป
 
-### 2. Start Services
+### 2. รันระบบทั้งหมด
 
-Use the provided script to start the PostgreSQL database, Redis, FastAPI Backend, Celery Worker, and React Frontend.
+ใช้คำสั่งด้านล่างนี้ ระบบจะทำการเปิด Database, Redis, FastAPI Backend, Celery Worker, และ React Frontend ขึ้นมาผ่าน Docker:
 
 ```bash
 ./run.sh
 ```
-*Note: If you do not want to use the script, you can run `docker-compose up --build -d` directly.*
+*หรือสามารถรันด้วยคำสั่ง `docker-compose up --build -d` ก็ได้เช่นกัน*
 
-### 3. Database Migrations
+### 3. เตรียมฐานข้อมูล (Database Migrations)
 
-Apply the database schema and models for the backend:
+หลังจากที่คอนเทนเนอร์ทำงาน ให้เรารันคำสั่งสร้างตารางในฐานข้อมูล:
 ```bash
 docker-compose exec backend alembic upgrade head
 ```
 
-### 4. Access the Dashboard
+### 4. วิธีเข้าใช้งาน
 
-- **Frontend Admin Panel**: [http://localhost:5173](http://localhost:5173)
-- **Backend API Docs (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **หน้าแอดมิน (Frontend Dashboard)**: [http://localhost:5173](http://localhost:5173)
+- **เอกสาร API (Backend Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-## 🧪 Running Tests
-
-To run the local backend test suite (API and Celery logic testing):
-```bash
-cd backend
-python -m pip install -r requirements.txt pytest httpx
-PYTHONPATH=. pytest tests/
-```
+## 📖 คู่มือการใช้งานแบบละเอียด
+โปรดอ่านรายละเอียดเชิงลึกและวิธีใช้งานแดชบอร์ดที่ไฟล์ [MANUAL_TH.md](MANUAL_TH.md)

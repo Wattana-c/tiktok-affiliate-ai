@@ -221,11 +221,16 @@ def post_queued_content_task(self):
         # Global Risk Control: Daily Loss Limit
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         from sqlalchemy import func
+        from app.core.config import settings
+
         daily_profit = db.query(func.sum(PostQueue.profit_score)).filter(PostQueue.posted_time >= today_start).scalar() or 0.0
 
-        DAILY_LOSS_LIMIT = -20.0
-        if daily_profit <= DAILY_LOSS_LIMIT:
-            logger.error(json.dumps({"event": "risk_control_stop", "reason": "Daily loss limit reached", "daily_profit": daily_profit}))
+        if daily_profit <= settings.DAILY_LOSS_LIMIT:
+            logger.critical(json.dumps({
+                "event": "CRITICAL_RISK_CONTROL_STOP",
+                "reason": f"System-wide kill switch engaged. Daily profit ({daily_profit}) breached loss limit ({settings.DAILY_LOSS_LIMIT}).",
+                "daily_profit": daily_profit
+            }))
             return {"status": "halted", "message": "Risk control triggered: Daily loss limit reached."}
 
         # Group posts by account to enforce rate limits
