@@ -8,6 +8,8 @@ class AccountBase(BaseModel):
     access_token: str
     is_active: Optional[bool] = True
     rate_limit: Optional[int] = 5
+    account_cost: Optional[float] = 0.15
+    proxy_cost: Optional[float] = 0.25
 
 class AccountCreate(AccountBase):
     pass
@@ -18,10 +20,14 @@ class AccountUpdate(BaseModel):
     access_token: Optional[str] = None
     is_active: Optional[bool] = None
     rate_limit: Optional[int] = None
+    account_cost: Optional[float] = None
+    proxy_cost: Optional[float] = None
 
 class Account(AccountBase):
     id: int
     failed_attempts: int
+    is_shadowbanned: bool
+    total_profit: float
     created_at: datetime
     updated_at: datetime
 

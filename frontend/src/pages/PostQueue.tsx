@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 
 export default function PostQueue() {
   const [queue, setQueue] = useState<any[]>([]);
 
   const fetchQueue = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/queue/');
+      const res = await api.get('/v1/queue/');
       setQueue(res.data);
     } catch (err) {
       console.error(err);
@@ -19,7 +19,7 @@ export default function PostQueue() {
 
   const handleAction = async (id: number, action: 'approve' | 'retry') => {
     try {
-      await axios.put(`http://localhost:8000/api/v1/queue/${id}/${action}`);
+      await api.put(`/v1/queue/${id}/${action}`);
       fetchQueue();
     } catch (err) {
       console.error(err);
@@ -51,7 +51,7 @@ export default function PostQueue() {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product ID</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account ID</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Retries</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -64,8 +64,20 @@ export default function PostQueue() {
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(item.status)}`}>
                           {item.status}
                         </span>
+                        {item.retry_count > 0 && <span className="ml-2 text-xs text-red-500">({item.retry_count} retries)</span>}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.retry_count}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.status === 'posted' ? (
+                          <div className="flex flex-col text-xs space-y-1">
+                            <span>👀 {item.views} Views</span>
+                            <span>🔥 {item.conversions} Sales</span>
+                            <span className="font-semibold text-green-600">💰 Revenue: ${item.revenue || 0}</span>
+                            <span className="font-semibold text-indigo-600">📈 Profit Score: {item.profit_score || 0}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">N/A</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         {item.status === 'review' && (
                           <button onClick={() => handleAction(item.id, 'approve')} className="text-indigo-600 hover:text-indigo-900 mr-4">Approve</button>

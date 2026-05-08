@@ -4,9 +4,10 @@ import json
 from datetime import datetime, timedelta
 from celery.exceptions import MaxRetriesExceededError
 from app.worker.celery_app import celery_app
-from app.services.scraper.tiktok_scraper import scrape_tiktok_products_mock
+from app.services.scraper.tiktok_scraper import TikTokIngestionEngine
 from app.services.ai.content_generator import generate_variants
 from app.services.posting.tiktok_poster import post_content_to_tiktok_mock
+from app.models.tiktok_video_trend import TikTokVideoTrend
 from app.db.database import SessionLocal
 from app.models.product import Product as DBProduct
 from app.models.generated_content import GeneratedContent
@@ -26,28 +27,65 @@ def scrape_products_task(self):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        mock_products_data = loop.run_until_complete(scrape_tiktok_products_mock())
+        engine = TikTokIngestionEngine()
+        trending_data, source = loop.run_until_complete(engine.extract_trending_data())
 
-        for product_data in mock_products_data:
-            existing_product = db.query(DBProduct).filter(DBProduct.tiktok_product_id == product_data.tiktok_product_id).first()
+        logger.info(json.dumps({
+            "event": "data_ingestion_complete",
+            "source": source,
+            "items_extracted": len(trending_data),
+            "freshness": str(datetime.now())
+        }))
+
+        for item in trending_data:
+            # 1. Save raw extracted data to TikTokVideoTrend
+            existing_trend = db.query(TikTokVideoTrend).filter(TikTokVideoTrend.video_id == item["video_id"]).first()
+            if not existing_trend:
+                trend_entry = TikTokVideoTrend(
+                    video_id=item["video_id"],
+                    caption=item.get("caption"),
+                    hashtags=item.get("hashtags"),
+                    view_count=item.get("view_count", 0),
+                    like_count=item.get("like_count", 0),
+                    share_count=item.get("share_count", 0),
+                    product_keywords=item.get("product_keywords"),
+                    source=source,
+                    trend_score=item.get("trend_score", 0.0)
+                )
+                db.add(trend_entry)
+                db.commit()
+
+            # 2. Map back to products and trigger generation if applicable
+            # In a real scenario we use the product_keywords to map or create the product.
+            # Here we simulate by creating a product entry to match the trend logic.
+            product_data = {
+                "tiktok_product_id": item["video_id"], # Mapping proxy
+                "name": item.get("product_keywords", "Trending Product"),
+                "description": item.get("caption", ""),
+                "price": 0.0,
+                "trend_score": item.get("trend_score", 0.0)
+            }
+
+            existing_product = db.query(DBProduct).filter(DBProduct.tiktok_product_id == product_data["tiktok_product_id"]).first()
             if not existing_product:
-                # Add mock trend score out of 100
+                # Assign synthetic estimated_commission based on trend_score * rand for mock testing
                 import random
-                product_data.trend_score = round(random.uniform(30.0, 100.0), 1)
+                product_data["estimated_commission"] = round(product_data.get("trend_score", 0) * random.uniform(0.5, 2.0), 2)
 
-                db_product = DBProduct(**product_data.model_dump())
+                db_product = DBProduct(**product_data)
                 db.add(db_product)
                 db.commit()
                 db.refresh(db_product)
                 logger.info(json.dumps({
                     "event": "product_scraped",
                     "product_id": db_product.id,
-                    "trend_score": db_product.trend_score
+                    "trend_score": db_product.trend_score,
+                    "estimated_commission": db_product.estimated_commission
                 }))
 
-                # Smart Decision Logic based on trend_score
-                if db_product.trend_score < 50:
-                    logger.info(json.dumps({"event": "skip_product", "product_id": db_product.id, "reason": "Low trend score"}))
+                # Smart Decision Logic based on trend_score and margins
+                if db_product.trend_score < 50 and db_product.estimated_commission < 20.0:
+                    logger.info(json.dumps({"event": "skip_product", "product_id": db_product.id, "reason": "Low trend score and low margin"}))
                     continue
 
                 # Automatically trigger content generation after scraping
@@ -104,7 +142,8 @@ def generate_and_queue_content_task(self, product_id: int, language: str = "Thai
                 caption=variant.get("caption", ""),
                 video_script=variant.get("video_script", ""),
                 cta=variant.get("cta", ""),
-                hashtags=variant.get("hashtags", "")
+                hashtags=variant.get("hashtags", ""),
+                diversity_penalty=variant.get("diversity_penalty", 0)
             )
             db.add(new_content)
             saved_contents.append(new_content)
@@ -119,8 +158,20 @@ def generate_and_queue_content_task(self, product_id: int, language: str = "Thai
         if saved_contents:
             target_content = saved_contents[0]
 
-            # Automatically queue for posting (Find an active account)
-            account = db.query(Account).filter(Account.is_active == True).first()
+            # Multi-Account Scaling Engine: Rotate accounts by picking the one least used today
+            from sqlalchemy import func
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+            accounts = db.query(Account, func.count(PostQueue.id).label('daily_posts')).outerjoin(
+                PostQueue,
+                (PostQueue.account_id == Account.id) & (PostQueue.posted_time >= today_start) & (PostQueue.status == "posted")
+            ).filter(
+                Account.is_active == True,
+                Account.is_shadowbanned == False
+            ).group_by(Account.id).order_by('daily_posts').all()
+
+            account = accounts[0][0] if accounts else None
+
             if account:
                 # Smart decision for Queue status
                 queue_status = "pending" if db_product.trend_score >= 80 else "review"
@@ -160,18 +211,70 @@ def post_queued_content_task(self):
     db = SessionLocal()
     try:
         now = datetime.now()
-        pending_posts = db.query(PostQueue).filter(
+
+        # Budget Allocation Logic: Sort pending posts dynamically by profit_score to ensure highest margin items post first.
+        pending_posts = db.query(PostQueue).join(DBProduct).filter(
             PostQueue.status == "pending",
             PostQueue.scheduled_time <= now
-        ).all()
+        ).order_by(DBProduct.estimated_commission.desc()).all()
 
-        for post in pending_posts:
-            account = db.query(Account).filter(Account.id == post.account_id).first()
-            if not account or not account.is_active:
-                post.status = "failed"
-                post.error_message = "Account disabled or not found"
+        # Global Risk Control: Daily Loss Limit
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        from sqlalchemy import func
+        from app.core.config import settings
+
+        daily_profit = db.query(func.sum(PostQueue.profit_score)).filter(PostQueue.posted_time >= today_start).scalar() or 0.0
+
+        if daily_profit <= settings.DAILY_LOSS_LIMIT:
+            logger.critical(json.dumps({
+                "event": "CRITICAL_RISK_CONTROL_STOP",
+                "reason": f"System-wide kill switch engaged. Daily profit ({daily_profit}) breached loss limit ({settings.DAILY_LOSS_LIMIT}).",
+                "daily_profit": daily_profit
+            }))
+            return {"status": "halted", "message": "Risk control triggered: Daily loss limit reached."}
+
+        # Group posts by account to enforce rate limits
+        account_posts = {}
+        for p in pending_posts:
+            if p.account_id not in account_posts:
+                account_posts[p.account_id] = []
+            account_posts[p.account_id].append(p)
+
+        for account_id, posts in account_posts.items():
+            account = db.query(Account).filter(Account.id == account_id).first()
+            if not account or not account.is_active or account.is_shadowbanned:
+                for post in posts:
+                    post.status = "failed"
+                    reason = "Account is explicitly disabled or shadowbanned." if account else "Account not found."
+                    post.error_message = reason
+                    logger.warning(json.dumps({
+                        "event": "post_skipped",
+                        "post_id": post.id,
+                        "account_id": account_id,
+                        "reason": reason
+                    }))
                 db.commit()
                 continue
+
+            # Smart Posting Strategy: Enforce daily limits to avoid spam behavior
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            posted_today = db.query(PostQueue).filter(
+                PostQueue.account_id == account.id,
+                PostQueue.status == "posted",
+                PostQueue.posted_time >= today_start
+            ).count()
+
+            allowed_posts_remaining = max(0, (account.rate_limit or 5) - posted_today)
+
+            for post in posts:
+                if allowed_posts_remaining <= 0:
+                    logger.info(json.dumps({"event": "post_delayed_ratelimit", "account": account.id, "post": post.id}))
+                    # Push scheduled time back
+                    post.scheduled_time = datetime.now() + timedelta(hours=4)
+                    db.commit()
+                    continue
+
+                allowed_posts_remaining -= 1
 
             content = db.query(GeneratedContent).filter(GeneratedContent.id == post.content_id).first()
             if not content:

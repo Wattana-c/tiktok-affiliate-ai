@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 
 export default function ContentPreview() {
   const [searchParams] = useSearchParams();
@@ -14,7 +14,7 @@ export default function ContentPreview() {
     if (!productId) return;
     setLoading(true);
     try {
-      const res = await axios.post(`http://localhost:8000/api/v1/ai/generate-variants/${productId}?language=${language}`);
+      const res = await api.post(`/v1/ai/generate-variants/${productId}?language=${language}`);
       setVariants(res.data);
       setSelectedVariant(0);
     } catch (err) {

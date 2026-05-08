@@ -19,6 +19,10 @@ CONTENT MODE RULES:
 - If content_mode is "hard_sell": Focus on urgency, discounts, limited stock, and direct action.
 - If content_mode is "storytelling": Share a relatable story or journey that leads to the product.
 - If content_mode is "problem_solution": Highlight a painful problem first, then introduce the product as the ultimate fix.
+- If content_mode is "wildcard_explore": Ignore standard formulas. Create something extremely unconventional, weird, or avant-garde to test new viral vectors.
+
+CRITICAL DIVERSITY REQUIREMENT:
+{diversity_instruction}
 """
 
 USER_PROMPT_TEMPLATE = """
@@ -31,5 +35,12 @@ Product Details:
 Target Language: {language}
 Content Mode: {content_mode}
 
+{feedback_context}
+
 Please generate the affiliate content matching the specified language and content mode.
+"""
+
+FEEDBACK_CONTEXT_TEMPLATE = """
+To help you, here are some examples of highly successful past content in the same category/language that drove high conversions and engagement. Use these as inspiration for tone and structure, but do not copy them verbatim:
+{examples}
 """

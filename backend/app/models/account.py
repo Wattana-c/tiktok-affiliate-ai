@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, func
 from app.db.database import Base
 
 class Account(Base):
@@ -11,5 +11,9 @@ class Account(Base):
     is_active = Column(Boolean, default=True)
     rate_limit = Column(Integer, default=5) # Posts per day
     failed_attempts = Column(Integer, default=0)
+    is_shadowbanned = Column(Boolean, default=False)
+    total_profit = Column(Float, default=0.0)
+    account_cost = Column(Float, default=0.15)
+    proxy_cost = Column(Float, default=0.25)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 
 export default function Settings() {
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -8,7 +8,7 @@ export default function Settings() {
 
   const fetchAccounts = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/accounts/');
+      const res = await api.get('/v1/accounts/');
       setAccounts(res.data);
     } catch (err) {
       console.error(err);
@@ -21,7 +21,7 @@ export default function Settings() {
 
   const handleAddAccount = async () => {
     try {
-      await axios.post('http://localhost:8000/api/v1/accounts/', {
+      await api.post('/v1/accounts/', {
         platform,
         account_name: accountName,
         access_token: 'mock_token_for_now',
@@ -93,10 +93,15 @@ export default function Settings() {
                       <p className="text-sm font-medium text-gray-900">{acc.account_name}</p>
                       <p className="text-sm text-gray-500 capitalize">{acc.platform}</p>
                     </div>
-                    <div className="flex items-center">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${acc.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    <div className="flex items-center space-x-2">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${acc.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                         {acc.is_active ? 'Active' : 'Inactive'}
                       </span>
+                      {acc.is_shadowbanned && (
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                          Shadowbanned
+                        </span>
+                      )}
                     </div>
                   </li>
                 ))}
