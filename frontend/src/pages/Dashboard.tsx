@@ -46,7 +46,7 @@ export default function Dashboard() {
           <p className="mt-2 text-3xl font-bold text-gray-900">{products.length}</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Top Trends (>80)</h3>
+          <h3 className="text-sm font-medium text-gray-500 uppercase">Top Trends (&gt;80)</h3>
           <p className="mt-2 text-3xl font-bold text-green-600">{topProducts}</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">

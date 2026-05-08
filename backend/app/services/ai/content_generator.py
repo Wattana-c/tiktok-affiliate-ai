@@ -1,24 +1,34 @@
 import json
 import os
 import asyncio
+import logging
 from typing import Dict, List
 from openai import AsyncOpenAI
 from app.schemas.product import Product
 from app.services.ai.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
-import logging
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
 openai_api_key = os.getenv("OPENAI_API_KEY")
-client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+google_api_key = os.getenv("GOOGLE_API_KEY")
+
+openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+
+if google_api_key:
+    gemini_client = genai.Client(api_key=google_api_key)
+else:
+    gemini_client = None
+
 
 async def generate_content(product: Product, language: str = "Thai", content_mode: str = "soft_sell") -> Dict[str, str]:
     """
-    Generates AI affiliate content using OpenAI for a specific mode.
+    Generates AI affiliate content using Gemini or OpenAI for a specific mode.
     Falls back to smart mock if no API key is provided.
     """
-    if not client:
-        logger.warning(f"OPENAI_API_KEY not found. Falling back to smart mocks ({content_mode}).")
+    if not gemini_client and not openai_client:
+        logger.warning(f"No AI API keys found. Falling back to smart mocks ({content_mode}).")
         return _generate_smart_mock(product, language, content_mode)
 
     user_prompt = USER_PROMPT_TEMPLATE.format(
@@ -32,19 +42,35 @@ async def generate_content(product: Product, language: str = "Thai", content_mod
     )
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format={"type": "json_object"}
-        )
-        content_json = response.choices[0].message.content
-        return json.loads(content_json)
+        if gemini_client:
+            # Use Google Gemini (New SDK)
+            full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}\n\nReturn the result in JSON format."
+            response = await gemini_client.aio.models.generate_content(
+                model='gemini-2.5-flash-lite',
+
+                contents=full_prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type='application/json',
+                )
+            )
+            return json.loads(response.text)
+        else:
+            # Use OpenAI
+            response = await openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            content_json = response.choices[0].message.content
+            return json.loads(content_json)
     except Exception as e:
-        logger.error(f"Error calling OpenAI API: {e}")
+        logger.error(f"Error calling AI API: {e}")
         return _generate_smart_mock(product, language, content_mode)
+
+
 
 async def generate_variants(product: Product, language: str = "Thai") -> List[Dict]:
     """
