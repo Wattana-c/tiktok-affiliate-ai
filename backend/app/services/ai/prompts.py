@@ -50,3 +50,8 @@ FEEDBACK_CONTEXT_TEMPLATE = """
 To help you, here are some examples of highly successful past content in the same category/language that drove high conversions and engagement. Use these as inspiration for tone and structure, but do not copy them verbatim:
 {examples}
 """
+
+FEEDBACK_CONTEXT_TEMPLATE = """
+To help you, here are some examples of highly successful past content in the same category/language that drove high conversions and engagement. Use these as inspiration for tone and structure, but do not copy them verbatim:
+{examples}
+"""
