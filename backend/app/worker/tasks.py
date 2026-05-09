@@ -158,7 +158,7 @@ def generate_and_queue_content_task(self, product_id: int, language: str = "Thai
         if saved_contents:
             target_content = saved_contents[0]
 
-            # Multi-Account Scaling Engine: Rotate accounts by picking the one least used today
+            # Multi-Account Scaling Engine: Rotate accounts by picking the one least used today, factoring in trust_score
             from sqlalchemy import func
             today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -168,7 +168,7 @@ def generate_and_queue_content_task(self, product_id: int, language: str = "Thai
             ).filter(
                 Account.is_active == True,
                 Account.is_shadowbanned == False
-            ).group_by(Account.id).order_by('daily_posts').all()
+            ).group_by(Account.id).order_by(Account.trust_score.desc(), 'daily_posts').all()
 
             account = accounts[0][0] if accounts else None
 

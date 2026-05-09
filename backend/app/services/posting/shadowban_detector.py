@@ -39,6 +39,7 @@ def check_and_update_shadowban(account_id: int, db: Session) -> bool:
     if baseline_avg > 0 and recent_avg < (baseline_avg * 0.2):
         # Drop > 80%
         account.is_shadowbanned = True
+        account.trust_score = max(account.trust_score - 40, 0)
         db.commit()
         db.refresh(account)
 
@@ -52,5 +53,9 @@ def check_and_update_shadowban(account_id: int, db: Session) -> bool:
             db.commit()
 
         return True
+
+    # Otherwise, slight increase in trust score for healthy operation (capped at 100)
+    account.trust_score = min(account.trust_score + 1, 100.0)
+    db.commit()
 
     return False

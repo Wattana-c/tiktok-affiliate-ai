@@ -31,6 +31,7 @@ Product Details:
 - Category: {category}
 - Price: {price} {currency}
 - Description: {description}
+- Trending Keywords to Inject: {trending_keywords}
 
 Target Language: {language}
 Content Mode: {content_mode}
@@ -38,6 +39,11 @@ Content Mode: {content_mode}
 {feedback_context}
 
 Please generate the affiliate content matching the specified language and content mode.
+
+Also, structure the 'video_script' to explicitly include:
+- Visual/Scene Suggestions
+- Voice Script/Subtitle text
+- Timing
 """
 
 FEEDBACK_CONTEXT_TEMPLATE = """

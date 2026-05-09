@@ -1,25 +1,33 @@
 import json
 import os
 import asyncio
-import logging
 from typing import Dict, List
 from openai import AsyncOpenAI
 from app.schemas.product import Product
-from app.services.ai.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+from app.services.ai.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, FEEDBACK_CONTEXT_TEMPLATE
+from app.db.database import SessionLocal
+from app.models.generated_content import GeneratedContent
+from app.models.product import Product as DBProduct
 import logging
 
 logger = logging.getLogger(__name__)
 
-openai_api_key = os.getenv("OPENAI_API_KEY")
+# Fallback mechanism: use Google Gemini if GOOGLE_API_KEY exists, otherwise fallback to OPENAI_API_KEY
 google_api_key = os.getenv("GOOGLE_API_KEY")
-
-openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
 if google_api_key:
-    gemini_client = genai.Client(api_key=google_api_key)
+    client = AsyncOpenAI(
+        api_key=google_api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+    DEFAULT_MODEL = "gemini-2.5-flash" # Use full flash for better instruction following vs lite
+elif openai_api_key:
+    client = AsyncOpenAI(api_key=openai_api_key)
+    DEFAULT_MODEL = "gpt-3.5-turbo"
 else:
-    gemini_client = None
-
+    client = None
+    DEFAULT_MODEL = ""
 
 def get_high_performing_examples(category: str, language: str, limit: int = 3) -> str:
     """Fetches high performing content from the DB to use as examples in the prompt."""
@@ -34,10 +42,28 @@ def get_high_performing_examples(category: str, language: str, limit: int = 3) -
 
         # Don't strictly filter by exact category to ensure cross-pollination of viral mechanics
         # Just order by the newest/best and fetch a larger pool
-        pool = query.order_by(GeneratedContent.created_at.desc(), GeneratedContent.performance_score.desc()).limit(50).all()
+        pool = query.order_by(GeneratedContent.created_at.desc(), GeneratedContent.performance_score.desc()).limit(100).all()
 
         if not pool:
             return ""
+
+        # Learning Memory Decay: Sort or weight by freshness (more recent = higher probability of selection)
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+
+        for item in pool:
+            # Simple decay: score drops by 10% each week old it is
+            if item.created_at:
+                # convert naive to aware if needed for subtraction
+                item_date = item.created_at.replace(tzinfo=timezone.utc) if item.created_at.tzinfo is None else item.created_at
+                days_old = (now - item_date).days
+                decay_factor = max(1.0 - (days_old / 7) * 0.1, 0.1) # Floor at 0.1
+                item.decayed_score = (item.performance_score or 0) * decay_factor
+            else:
+                item.decayed_score = item.performance_score or 0
+
+        # Sort the pool by the decayed score
+        pool = sorted(pool, key=lambda x: x.decayed_score, reverse=True)[:50]
 
         # Randomly drop 20% of the pool to ensure structural diversity and prevent overfitting
         pool_size = len(pool)
@@ -94,16 +120,22 @@ def get_high_performing_examples(category: str, language: str, limit: int = 3) -
     finally:
         db.close()
 
-async def generate_content(product: Product, language: str = "Thai", content_mode: str = "soft_sell") -> Dict[str, str]:
+async def generate_content(product: Product, language: str = "Thai", content_mode: str = "soft_sell", trending_keywords: str = "") -> Dict[str, str]:
     """
-    Generates AI affiliate content using Gemini or OpenAI for a specific mode.
+    Generates AI affiliate content using OpenAI/Gemini for a specific mode.
     Falls back to smart mock if no API key is provided.
     """
-    if not gemini_client and not openai_client:
-        logger.warning(f"No AI API keys found. Falling back to smart mocks ({content_mode}).")
+    if not client:
+        logger.warning(f"No API key found. Falling back to smart mocks ({content_mode}).")
         return _generate_smart_mock(product, language, content_mode)
 
     feedback_context = get_high_performing_examples(product.category, language)
+
+    # Prepare trending keywords
+    if isinstance(trending_keywords, list):
+        trending_keywords_str = ", ".join(trending_keywords)
+    else:
+        trending_keywords_str = trending_keywords or "None"
 
     user_prompt = USER_PROMPT_TEMPLATE.format(
         name=product.name or "Unknown Product",
@@ -113,39 +145,28 @@ async def generate_content(product: Product, language: str = "Thai", content_mod
         description=product.description or "Great product",
         language=language,
         content_mode=content_mode,
+        trending_keywords=trending_keywords_str,
         feedback_context=feedback_context
     )
 
+    formatted_system_prompt = SYSTEM_PROMPT.format(
+        diversity_instruction="Be creative and follow the content mode perfectly."
+    )
+
     try:
-        if gemini_client:
-            # Use Google Gemini (New SDK)
-            full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}\n\nReturn the result in JSON format."
-            response = await gemini_client.aio.models.generate_content(
-                model='gemini-2.5-flash-lite',
-
-                contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type='application/json',
-                )
-            )
-            return json.loads(response.text)
-        else:
-            # Use OpenAI
-            response = await openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt}
-                ],
-                response_format={"type": "json_object"}
-            )
-            content_json = response.choices[0].message.content
-            return json.loads(content_json)
+        response = await client.chat.completions.create(
+            model=DEFAULT_MODEL,
+            messages=[
+                {"role": "system", "content": formatted_system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+        content_json = response.choices[0].message.content
+        return json.loads(content_json)
     except Exception as e:
-        logger.error(f"Error calling AI API: {e}")
+        logger.error(f"Error calling OpenAI API: {e}")
         return _generate_smart_mock(product, language, content_mode)
-
-
 
 async def generate_variants(product: Product, language: str = "Thai") -> List[Dict]:
     """
@@ -203,7 +224,8 @@ async def generate_variants(product: Product, language: str = "Thai") -> List[Di
                 break
 
     modes_to_generate = modes_to_generate[:3]
-    tasks = [generate_content(product, language, mode) for mode in modes_to_generate]
+    trending_keywords = getattr(product, 'trending_keywords', "")
+    tasks = [generate_content(product, language, mode, trending_keywords) for mode in modes_to_generate]
 
     results = await asyncio.gather(*tasks)
 

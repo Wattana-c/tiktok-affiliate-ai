@@ -4,15 +4,37 @@
 
 ## 🏗 ภาพรวมของระบบ (System Architecture)
 
-1. **ระบบดึงข้อมูลเทรนด์ (TikTok Data Ingestion)**: ทำงานด้วยระบบ Hybrid (API -> Scraper -> Mock) มีระบบป้องกันการแบนด้วยการสลับ User-Agents และจำกัดความถี่การดึงข้อมูล เพื่อให้ได้ข้อมูลสินค้าที่กำลังเป็นกระแส
+ระบบถูกออกแบบให้ทำงานแบบ Asynchronous ผ่าน Celery Worker โดยแยกการทำงานของ Frontend (Vite/React) และ Backend (FastAPI) ออกจากกัน
+
+### Architecture Flow Diagram
+```text
+[Frontend (React/Vite)] <---> [Backend (FastAPI)] <---> [PostgreSQL]
+                                       |
+                                       v
+                             [Redis (Message Broker)]
+                                       |
+             +---------------------------------------------------+
+             |                  Celery Workers                   |
+             |                                                   |
+             |  1. Scraper / Trend Discovery                     |
+             |      (Creative Center -> API -> Scraper)          |
+             |                                                   |
+             |  2. AI Content Generator (Google Gemini/OpenAI)   |
+             |      (Hooks, Captions, Voice/Video Scripts)       |
+             |                                                   |
+             |  3. Multi-Account Poster & Queue Manager          |
+             |      (Checks Trust Score & Shadowbans)            |
+             +---------------------------------------------------+
+```
+
+### ฟีเจอร์หลัก
+1. **ระบบดึงข้อมูลเทรนด์ (TikTok Trend Discovery)**: ดึงข้อมูลเทรนด์แบบ Hybrid (Creative Center -> API -> Scraper -> Mock) มีระบบป้องกันการแบนด้วยการสลับ User-Agents
 2. **ระบบคิดคะแนนอัจฉริยะ (Smart Decision Engine)**: คำนวณคะแนนเทรนด์ (`trend_score`) จากยอดไลก์และยอดวิว
    - **Score >= 80**: สินค้ามาแรงสุดๆ AI จะสร้างเนื้อหาและโพสต์ทันทีโดยไม่ต้องรออนุมัติ
    - **Score >= 50 และ < 80**: สินค้าระดับกลาง ระบบจะสร้างเนื้อหาไว้และรอให้คุณกดตรวจสอบ (Review)
-   - **Score < 50**: สินค้าไม่น่าสนใจ ระบบจะข้ามไป
-3. **ระบบสุ่มและเรียนรู้ของ AI (Exploration vs Exploitation 80/20)**: สร้างคอนเทนต์ 3 รูปแบบ (A/B variants) โดย 80% AI จะเลือกใช้รูปแบบที่เคยสร้างรายได้สูงมาแล้วในอดีต (เช่น แนวบอกเล่า, แนวขายตรง) และอีก 20% จะลองสุ่มรูปแบบใหม่เพื่อหาเทรนด์ที่อาจจะกลายเป็นไวรัล
-4. **การบริหารจัดการคิวและโพสต์ (Celery Worker Pipeline)**: จัดการงานเบื้องหลัง มีระบบหน่วงเวลาการทำงานเมื่อเกิดข้อผิดพลาด และป้องกันการโพสต์สแปมเกินลิมิต
-5. **ระบบจัดการหลายบัญชีและควบคุมความเสี่ยง (Multi-Account & Risk Control)**: ระบบจะกระจายการโพสต์ไปยังบัญชีที่มีอยู่โดยอัตโนมัติ หากเจอการปิดกั้น (Shadowban) หรือพบบัญชีขาดทุนเกินขีดจำกัด (`DAILY_LOSS_LIMIT`) ระบบทั้งหมดจะหยุดชั่วคราว (Kill Switch) เพื่อลดความเสียหาย
-6. **แดชบอร์ดแอดมิน (React Admin Dashboard)**: หน้าต่างควบคุมที่สร้างจาก Vite + Tailwind CSS สำหรับเช็คสถิติการคลิก, รายได้, กำไรต่อบัญชี, และกดอนุมัติคิว
+3. **ระบบสุ่มและเรียนรู้ของ AI (Exploration vs Exploitation 80/20)**: สร้างคอนเทนต์หลายรูปแบบ และสอดแทรก **Learning Memory Decay** เพื่อให้ AI ให้น้ำหนักกับรูปแบบโพสต์ที่ไวรัลในอดีต "ล่าสุด" ก่อนเสมอ
+4. **Short Video Pipeline Scaffold**: AI ไม่ได้สร้างแค่ข้อความ แต่ถูกปรับคำสั่ง (Prompts) ให้เตรียมข้อมูลเป็น สคริปต์เสียง (Voice Script), คำบรรยาย (Subtitle), และแนะนำภาพ (Scene Suggestions) ไว้สำหรับต่อยอดการทำวิดีโอแบบออโต้ในอนาคต
+5. **ระบบความน่าเชื่อถือและการกระจายความเสี่ยง (Account Trust & Risk Control)**: ระบบประเมิน **Trust Score** ให้กับทุกบัญชีโซเชียลมีเดีย หากพบว่าบัญชีมีโอกาสถูกระงับการมองเห็น (Shadowbanned) คะแนน Trust Score จะลดลง และระบบจะโอนคิวโพสต์ไปยังบัญชีอื่นที่ปลอดภัยกว่าทันที
 
 ## 🛠 สิ่งที่ต้องมีก่อนเริ่มใช้งาน (Prerequisites)
 
