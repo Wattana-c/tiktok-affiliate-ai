@@ -9,4 +9,4 @@ test_tiktok_affiliate*.db
 # Node.js
 node_modules/
 dist/
-.env
+backend/tiktok_affiliate.db

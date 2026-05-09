@@ -39,7 +39,7 @@ export default function PostQueue() {
 
   return (
     <div className="py-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Automation Queue</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 mb-6">คิวอัตโนมัติ (Automation Queue)</h1>
 
       <div className="flex flex-col">
         <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
@@ -48,11 +48,11 @@ export default function PostQueue() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product ID</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account ID</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Performance</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รหัสสินค้า (Product ID)</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รหัสบัญชี (Account ID)</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ (Status)</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ประสิทธิภาพ (Performance)</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ (Actions)</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -64,26 +64,26 @@ export default function PostQueue() {
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(item.status)}`}>
                           {item.status}
                         </span>
-                        {item.retry_count > 0 && <span className="ml-2 text-xs text-red-500">({item.retry_count} retries)</span>}
+                        {item.retry_count > 0 && <span className="ml-2 text-xs text-red-500">({item.retry_count} ลองใหม่)</span>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {item.status === 'posted' ? (
                           <div className="flex flex-col text-xs space-y-1">
-                            <span>👀 {item.views} Views</span>
-                            <span>🔥 {item.conversions} Sales</span>
-                            <span className="font-semibold text-green-600">💰 Revenue: ${item.revenue || 0}</span>
-                            <span className="font-semibold text-indigo-600">📈 Profit Score: {item.profit_score || 0}</span>
+                            <span>👀 ยอดวิว: {item.views} </span>
+                            <span>🔥 ยอดขาย: {item.conversions}</span>
+                            <span className="font-semibold text-green-600">💰 รายได้: ฿{item.revenue || 0}</span>
+                            <span className="font-semibold text-indigo-600">📈 คะแนนกำไร: {item.profit_score || 0}</span>
                           </div>
                         ) : (
-                          <span className="text-gray-400">N/A</span>
+                          <span className="text-gray-400">ไม่มีข้อมูล (N/A)</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         {item.status === 'review' && (
-                          <button onClick={() => handleAction(item.id, 'approve')} className="text-indigo-600 hover:text-indigo-900 mr-4">Approve</button>
+                          <button onClick={() => handleAction(item.id, 'approve')} className="text-indigo-600 hover:text-indigo-900 mr-4">อนุมัติ (Approve)</button>
                         )}
                         {item.status === 'failed' && (
-                          <button onClick={() => handleAction(item.id, 'retry')} className="text-red-600 hover:text-red-900 mr-4">Retry</button>
+                          <button onClick={() => handleAction(item.id, 'retry')} className="text-red-600 hover:text-red-900 mr-4">ลองใหม่ (Retry)</button>
                         )}
                       </td>
                     </tr>

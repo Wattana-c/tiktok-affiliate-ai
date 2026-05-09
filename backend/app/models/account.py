@@ -15,5 +15,6 @@ class Account(Base):
     total_profit = Column(Float, default=0.0)
     account_cost = Column(Float, default=0.15)
     proxy_cost = Column(Float, default=0.25)
+    trust_score = Column(Float, default=50.0) # Used to prioritize routing, max 100
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

@@ -15,19 +15,19 @@ export default function Sidebar() {
         <nav className="flex-1 space-y-1 px-4 py-4">
           <Link to="/" className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActive('/')}`}>
             <Home className="mr-3 h-5 w-5 flex-shrink-0" />
-            Dashboard
+            หน้าแรก (Dashboard)
           </Link>
           <Link to="/content" className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActive('/content')}`}>
             <Layers className="mr-3 h-5 w-5 flex-shrink-0" />
-            Content Generator
+            สร้างคอนเทนต์ (Content)
           </Link>
           <Link to="/queue" className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActive('/queue')}`}>
             <Clock className="mr-3 h-5 w-5 flex-shrink-0" />
-            Post Queue
+            คิวโพสต์ (Post Queue)
           </Link>
           <Link to="/settings" className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActive('/settings')}`}>
             <Settings className="mr-3 h-5 w-5 flex-shrink-0" />
-            Settings
+            ตั้งค่า (Settings)
           </Link>
         </nav>
       </div>
